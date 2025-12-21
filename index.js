@@ -10,6 +10,25 @@ if (!fs.existsSync(dataPath)) {
     fs.writeJsonSync(dataPath, {});
 }
 
+// --- স্মার্ট রিপ্লাই ফাংশন ---
+async function getAIResponse(text) {
+    try {
+        // সোর্স ১: নতুন একটি দ্রুততম GPT প্রক্সি
+        const res = await axios.get(`https://shuddho-ai-api.onrender.com/gpt?prompt=${encodeURIComponent(text)}`, { timeout: 8000 });
+        if (res.data && res.data.answer) return res.data.answer;
+        throw new Error("Source 1 Failed");
+    } catch (e) {
+        try {
+            // সোর্স ২: বিকল্প চ্যাটবট এপিআই
+            const res2 = await axios.get(`https://api.popcat.xyz/chatbot?msg=${encodeURIComponent(text)}&owner=AkHi&botname=Bby`, { timeout: 8000 });
+            if (res2.data && res2.data.response) return res2.data.response;
+            throw new Error("Source 2 Failed");
+        } catch (e2) {
+            return null; // সব ফেইল করলে নাল রিটার্ন করবে
+        }
+    }
+}
+
 app.get('/simi', async (req, res) => {
     const text = req.query.text ? req.query.text.toLowerCase().trim() : null;
     if (!text) return res.json({ error: "Text missing!" });
@@ -23,23 +42,24 @@ app.get('/simi', async (req, res) => {
             return res.json({ reply: replies[Math.floor(Math.random() * replies.length)], status: "success" });
         }
 
-        // ২. শিখিয়ে না থাকলে এই উন্নত AI API ব্যবহার করবে
-        const response = await axios.get(`https://api.sumon-host.click/gpt?prompt=${encodeURIComponent(text)}`);
+        // ২. শিখিয়ে না থাকলে AI থেকে উত্তর আনবে
+        const aiReply = await getAIResponse(text);
         
-        if (response.data && response.data.content) {
-            return res.json({ reply: response.data.content, status: "success" });
+        if (aiReply) {
+            return res.json({ reply: aiReply, status: "success" });
         } else {
-            throw new Error("AI failed");
+            // ৩. সব এপিআই ফেইল করলে লোকাল ডাটাবেজ থেকে র‍্যান্ডম কথা বলবে
+            const fallbackReplies = [
+                "হুম বলো জানু, শুনছি তো।",
+                "আমি ঠিক বুঝতে পারছি না, আর একবার বলো?",
+                "বলো সোনা, আমি তোমার পাশেই আছি।",
+                "এখন একটু নেটওয়ার্ক ডিস্টার্ব দিচ্ছে, কিন্তু তুমি বলো।"
+            ];
+            return res.json({ reply: fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)] });
         }
 
     } catch (e) {
-        // ৩. যদি উপরের সব ফেইল করে, তবে সিমসিমি (সর্বশেষ চেষ্টা)
-        try {
-            const simi = await axios.get(`https://sandipbaruwal.onrender.com/simi?text=${encodeURIComponent(text)}&lc=bn`);
-            res.json({ reply: simi.data.answer || "হুম বলো জানু!" });
-        } catch (err) {
-            res.json({ reply: "উফ জানু! আমার নেটওয়ার্কে খুব সমস্যা হচ্ছে। একটু পরে কথা বলি? 🥺" });
-        }
+        res.json({ reply: "হুম জানু, বলো আমি শুনছি।" });
     }
 });
 
@@ -61,5 +81,4 @@ app.get('/teach', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Smart AI Server running on port ${PORT}`));
-    
+app.listen(PORT, () => console.log(`Smart Server running on port ${PORT}`));
