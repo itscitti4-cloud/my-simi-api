@@ -17,29 +17,32 @@ app.get('/simi', async (req, res) => {
     try {
         const brain = fs.readJsonSync(dataPath);
 
-        // ১. শেখানো উত্তর থাকলে সেটি আগে দিবে
+        // ১. আপনার শেখানো উত্তর আগে চেক করবে (এটি কখনো ফেইল হবে না)
         if (brain[text]) {
             const replies = brain[text];
             return res.json({ reply: replies[Math.floor(Math.random() * replies.length)], status: "success" });
         }
 
-        // ২. নতুন স্টেবল GPT API (এটি অনেক দ্রুত কাজ করবে)
-        const aiResponse = await axios.get(`https://noobs-api2.onrender.com/dipto/baby?prompt=${encodeURIComponent(text)}`);
-        
-        if (aiResponse.data && aiResponse.data.reply) {
-            return res.json({ reply: aiResponse.data.reply, status: "success" });
+        // ২. সরাসরি Simsimi API (এটি অনেক বেশি স্টেবল)
+        const simiRes = await axios.get(`https://api.simsimi.vn/v1/simtalk`, {
+            params: { text: text, lc: 'bn' }
+        });
+
+        if (simiRes.data && simiRes.data.message) {
+            return res.json({ reply: simiRes.data.message, status: "success" });
         } else {
-            throw new Error("AI Failed");
+            throw new Error("Simsimi Failed");
         }
 
     } catch (e) {
-        // ৩. AI ফেইল করলে ব্যাকআপ Simsimi (Bengali)
-        try {
-            const simi = await axios.get(`https://api.simsimi.vn/v1/simtalk?text=${encodeURIComponent(text)}&lc=bn`);
-            res.json({ reply: simi.data.message });
-        } catch (err) {
-            res.json({ reply: "আমি একটু কনফিউজড হয়ে গেছি জানু, আবার বলো? 🥺" });
-        }
+        // ৩. যদি সিমসিমিও ফেইল করে তবে একটি স্মার্ট ডিফল্ট রিপ্লাই
+        const fallbacks = [
+            "হুম বলো জানু, শুনছি।",
+            "বুঝতে পারিনি সোনা, আবার বলো?",
+            "আমি তোমার সাথেই আছি।",
+            "কি বললা? আবার বলো তো!"
+        ];
+        res.json({ reply: fallbacks[Math.floor(Math.random() * fallbacks.length)] });
     }
 });
 
@@ -61,5 +64,4 @@ app.get('/teach', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Smart AI Server running on port ${PORT}`));
-                        
+app.listen(PORT, () => console.log(`Stable API running on port ${PORT}`));
