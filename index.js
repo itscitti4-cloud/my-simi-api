@@ -6,6 +6,7 @@ const app = express();
 
 const dataPath = path.join(__dirname, "brain.json");
 
+// ডাটা ফাইল নিশ্চিত করা
 if (!fs.existsSync(dataPath)) {
     fs.writeJsonSync(dataPath, {});
 }
@@ -17,28 +18,41 @@ app.get('/simi', async (req, res) => {
     try {
         const brain = fs.readJsonSync(dataPath);
 
-        // ১. আগে চেক করবে আপনার শিখানো উত্তর (Fastest)
-        if (brain[text]) {
+        // ১. লোকাল ডাটাবেস চেক (শিখানো উত্তর)
+        if (brain[text] && brain[text].length > 0) {
             const replies = brain[text];
-            return res.json({ reply: replies[Math.floor(Math.random() * replies.length)], status: "success" });
+            const randomReply = replies[Math.floor(Math.random() * replies.length)];
+            return res.json({ reply: randomReply, status: "success", source: "local_brain" });
         }
 
-        // ২. শিখানো উত্তর না থাকলে নতুন সুপার ফাস্ট GPT-4o API
-        const response = await axios.get(`https://api.deku-genshin.eu.org/gpt4o?prompt=${encodeURIComponent(text)}`, { timeout: 10000 });
-        
-        if (response.data && response.data.answer) {
-            return res.json({ reply: response.data.answer, status: "success" });
-        } else {
-            throw new Error("Fast AI Failed");
+        // ২. Meta AI (Llama 3) কল করা
+        try {
+            // অনেক সময় ফ্রি এপিআই স্লো থাকে, তাই টাইমআউট একটু বাড়ানো হয়েছে
+            const response = await axios.get(`https://api.shuddho-ai-api.onrender.com/llama?prompt=${encodeURIComponent(text)}`, { timeout: 15000 });
+            
+            if (response.data && response.data.answer) {
+                return res.json({ reply: response.data.answer, status: "success", source: "llama_3" });
+            } else {
+                console.log("Llama API response format error:", response.data);
+                throw new Error("Llama API format error");
+            }
+        } catch (llamaErr) {
+            console.error("Llama AI failed, trying SimSimi...", llamaErr.message);
+            throw llamaErr; // এটি পরবর্তী catch ব্লকে পাঠিয়ে দিবে
         }
 
     } catch (e) {
-        // ৩. ব্যাকআপ হিসেবে সিমসিমি (যদি GPT দেরি করে)
+        // ৩. ব্যাকআপ হিসেবে সিমসিমি
         try {
             const simi = await axios.get(`https://api.simsimi.vn/v1/simtalk?text=${encodeURIComponent(text)}&lc=bn`);
-            res.json({ reply: simi.data.message });
+            if (simi.data && simi.data.message) {
+                return res.json({ reply: simi.data.message, source: "simsimi" });
+            }
+            throw new Error("SimSimi failed");
         } catch (err) {
-            res.json({ reply: "হুম জানু বলো, আমি তোমার কথা শুনতেছি। 😘" });
+            // ৪. সব ফেইল করলে ডিফল্ট মেসেজ
+            const defaultMsgs = ["হুম বলো জানু, শুনছি তো।", "বুঝতে পারিনি সোনা, আবার বলো?", "বলো জানু, আমি তোমার পাশেই আছি।"];
+            res.json({ reply: defaultMsgs[Math.floor(Math.random() * defaultMsgs.length)], source: "default" });
         }
     }
 });
@@ -61,4 +75,5 @@ app.get('/teach', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Super Fast AI API running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Meta AI (Llama 3) API running on port ${PORT}`));
+            
