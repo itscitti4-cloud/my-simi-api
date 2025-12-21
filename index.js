@@ -6,27 +6,13 @@ const app = express();
 
 const dataPath = path.join(__dirname, "brain.json");
 
+// ডাটাবেজ ফাইল না থাকলে তৈরি করবে
 if (!fs.existsSync(dataPath)) {
-    fs.writeJsonSync(dataPath, {});
-}
-
-// --- স্মার্ট রিপ্লাই ফাংশন ---
-async function getAIResponse(text) {
-    try {
-        // সোর্স ১: নতুন একটি দ্রুততম GPT প্রক্সি
-        const res = await axios.get(`https://shuddho-ai-api.onrender.com/gpt?prompt=${encodeURIComponent(text)}`, { timeout: 8000 });
-        if (res.data && res.data.answer) return res.data.answer;
-        throw new Error("Source 1 Failed");
-    } catch (e) {
-        try {
-            // সোর্স ২: বিকল্প চ্যাটবট এপিআই
-            const res2 = await axios.get(`https://api.popcat.xyz/chatbot?msg=${encodeURIComponent(text)}&owner=AkHi&botname=Bby`, { timeout: 8000 });
-            if (res2.data && res2.data.response) return res2.data.response;
-            throw new Error("Source 2 Failed");
-        } catch (e2) {
-            return null; // সব ফেইল করলে নাল রিটার্ন করবে
-        }
-    }
+    const defaultData = {
+        "কেমন আছো": ["আমি ভালো আছি জানু, তুমি?", "খুব ভালো, তুমি কেমন আছো সোনা?"],
+        "হাই": ["হ্যালো জানু!", "বলো সোনা শুনছি।"]
+    };
+    fs.writeJsonSync(dataPath, defaultData);
 }
 
 app.get('/simi', async (req, res) => {
@@ -36,30 +22,40 @@ app.get('/simi', async (req, res) => {
     try {
         const brain = fs.readJsonSync(dataPath);
 
-        // ১. আগে চেক করবে আপনি নিজে কিছু শিখিয়েছেন কি না
+        // ১. আগে চেক করবে আপনার ডাটাবেজে (Teach) উত্তর আছে কি না
         if (brain[text]) {
             const replies = brain[text];
-            return res.json({ reply: replies[Math.floor(Math.random() * replies.length)], status: "success" });
+            const randomReply = replies[Math.floor(Math.random() * replies.length)];
+            return res.json({ reply: randomReply, status: "success" });
         }
 
-        // ২. শিখিয়ে না থাকলে AI থেকে উত্তর আনবে
-        const aiReply = await getAIResponse(text);
-        
-        if (aiReply) {
-            return res.json({ reply: aiReply, status: "success" });
-        } else {
-            // ৩. সব এপিআই ফেইল করলে লোকাল ডাটাবেজ থেকে র‍্যান্ডম কথা বলবে
-            const fallbackReplies = [
-                "হুম বলো জানু, শুনছি তো।",
-                "আমি ঠিক বুঝতে পারছি না, আর একবার বলো?",
-                "বলো সোনা, আমি তোমার পাশেই আছি।",
-                "এখন একটু নেটওয়ার্ক ডিস্টার্ব দিচ্ছে, কিন্তু তুমি বলো।"
-            ];
-            return res.json({ reply: fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)] });
+        // ২. ডাটাবেজে না থাকলে Gemini AI ব্যবহার করবে
+        try {
+            const geminiRes = await axios.get(`https://api.kenliejugarap.com/gemini/?prompt=${encodeURIComponent(text)}`);
+            
+            if (geminiRes.data && geminiRes.data.response) {
+                return res.json({ 
+                    reply: geminiRes.data.response, 
+                    status: "success",
+                    model: "Gemini" 
+                });
+            } else {
+                throw new Error("Gemini error");
+            }
+        } catch (geminiError) {
+            // ৩. Gemini ফেইল করলে ব্যাকআপ হিসেবে চ্যাটবট এপিআই
+            const backupRes = await axios.get(`https://api.popcat.xyz/chatbot?msg=${encodeURIComponent(text)}&owner=AkHi&botname=Bby`);
+            return res.json({ reply: backupRes.data.response, status: "success" });
         }
 
     } catch (e) {
-        res.json({ reply: "হুম জানু, বলো আমি শুনছি।" });
+        // ৪. সব ফেইল করলে লোকাল র‍্যান্ডম রিপ্লাই
+        const fallbacks = [
+            "হুম জানু বলো, শুনতেছি।",
+            "বুঝতে পারিনি সোনা, আবার বলবে কি?",
+            "আমি তোমার সাথেই আছি।"
+        ];
+        res.json({ reply: fallbacks[Math.floor(Math.random() * fallbacks.length)] });
     }
 });
 
@@ -71,8 +67,11 @@ app.get('/teach', async (req, res) => {
     try {
         const brain = fs.readJsonSync(dataPath);
         const q = ques.toLowerCase().trim();
+        const a = ans.trim();
+
         if (!brain[q]) brain[q] = [];
-        brain[q].push(ans);
+        brain[q].push(a);
+
         fs.writeJsonSync(dataPath, brain);
         res.json({ status: "success", message: "Shikhya gesi!" });
     } catch (e) {
@@ -81,4 +80,4 @@ app.get('/teach', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Smart Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Gemini-Hybrid API running on port ${PORT}`));
