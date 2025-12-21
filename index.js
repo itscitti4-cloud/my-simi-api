@@ -17,18 +17,17 @@ app.get('/simi', async (req, res) => {
     try {
         const brain = fs.readJsonSync(dataPath);
 
-        // ১. আপনার শেখানো (Teach) উত্তর থাকলে সেটি আগে দিবে
+        // ১. শেখানো উত্তর থাকলে সেটি আগে দিবে
         if (brain[text]) {
             const replies = brain[text];
             return res.json({ reply: replies[Math.floor(Math.random() * replies.length)], status: "success" });
         }
 
-        // ২. না থাকলে এটি GPT-4/Turbo লেভেলের বুদ্ধিমত্তা দিয়ে উত্তর দিবে
-        // আমরা এখানে একটি উন্নত ফ্রি প্রক্সি API ব্যবহার করছি
-        const aiResponse = await axios.get(`https://sandipbaruwal.onrender.com/gpt?prompt=${encodeURIComponent(text)}`);
+        // ২. নতুন স্টেবল GPT API (এটি অনেক দ্রুত কাজ করবে)
+        const aiResponse = await axios.get(`https://noobs-api2.onrender.com/dipto/baby?prompt=${encodeURIComponent(text)}`);
         
-        if (aiResponse.data && aiResponse.data.answer) {
-            return res.json({ reply: aiResponse.data.answer, status: "success" });
+        if (aiResponse.data && aiResponse.data.reply) {
+            return res.json({ reply: aiResponse.data.reply, status: "success" });
         } else {
             throw new Error("AI Failed");
         }
@@ -39,7 +38,7 @@ app.get('/simi', async (req, res) => {
             const simi = await axios.get(`https://api.simsimi.vn/v1/simtalk?text=${encodeURIComponent(text)}&lc=bn`);
             res.json({ reply: simi.data.message });
         } catch (err) {
-            res.json({ reply: "আমি এখন একটু ক্লান্ত জানু, পরে কথা বলি? 🥺" });
+            res.json({ reply: "আমি একটু কনফিউজড হয়ে গেছি জানু, আবার বলো? 🥺" });
         }
     }
 });
@@ -55,7 +54,7 @@ app.get('/teach', async (req, res) => {
         if (!brain[q]) brain[q] = [];
         brain[q].push(ans);
         fs.writeJsonSync(dataPath, brain);
-        res.json({ status: "success", message: "Teach Done!😍" });
+        res.json({ status: "success", message: "Shikhya gesi!" });
     } catch (e) {
         res.json({ error: "Failed to save data" });
     }
@@ -63,4 +62,4 @@ app.get('/teach', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Smart AI Server running on port ${PORT}`));
-            
+                        
