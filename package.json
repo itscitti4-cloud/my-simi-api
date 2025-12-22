@@ -2,7 +2,7 @@
   "name": "smart-ai-chatbot-api",
   "version": "1.0.0",
   "description": "Smart AI Chatbot with Auto-Teach and SimSimi Integration",
-  "main": "index.json",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
